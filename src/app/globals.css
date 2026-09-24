@@ -1,0 +1,36 @@
+@import "@fontsource-variable/archivo/wdth.css";
+@import "@fontsource-variable/public-sans";
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; }
+  body { @apply bg-paper font-sans text-ink antialiased text-[1rem] leading-relaxed; overflow-x: hidden; }
+  h1, h2, h3, h4 { @apply font-display font-bold text-ink; font-stretch: 100%; }
+  :focus-visible { @apply outline outline-2 outline-offset-2 outline-pole; }
+  ::selection { background: #A5342A; color: #fff; }
+  @media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+    *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+  }
+}
+
+@layer components {
+  .container-page { @apply mx-auto w-full max-w-page px-5 sm:px-8; }
+  .section { @apply py-16 sm:py-20; }
+  .btn { @apply inline-flex min-h-[44px] items-center justify-center gap-2 px-5 py-2.5 text-[0.9375rem] font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50; }
+  .btn-primary { @apply bg-pole text-white hover:bg-pole-dark; }
+  .btn-dark { @apply bg-ink text-paper hover:bg-black; }
+  .btn-outline { @apply border border-ink text-ink hover:bg-ink hover:text-paper; }
+  .btn-outline-light { @apply border border-paper/70 text-paper hover:bg-paper hover:text-ink; }
+  .label { @apply mb-1.5 block text-sm font-semibold text-ink; }
+  .input { @apply block min-h-[44px] w-full border border-steel/60 bg-white px-3 py-2 text-base text-ink placeholder:text-steel/70; }
+  .input[aria-invalid="true"] { @apply border-pole; }
+  .field-error { @apply mt-1.5 flex items-start gap-1.5 text-sm text-pole-dark; }
+  .pole-stripe { background: repeating-linear-gradient(-45deg, #A5342A 0 14px, #F5F3EE 14px 28px, #15202B 28px 42px, #F5F3EE 42px 56px); }
+}
+
+@keyframes modal-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+dialog.promo[open] { animation: modal-in 0.2s ease-out; }
+dialog.promo::backdrop { background: rgba(21, 32, 43, 0.6); }

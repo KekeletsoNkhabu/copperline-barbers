@@ -1,0 +1,70 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum BookingStatus {
+  CONFIRMED
+  CANCELLED
+}
+
+model Service {
+  id              String    @id @default(cuid())
+  slug            String    @unique
+  name            String
+  description     String
+  category        String
+  priceCents      Int
+  durationMinutes Int
+  active          Boolean   @default(true)
+  sortOrder       Int       @default(0)
+  bookings        Booking[]
+
+  @@index([active, sortOrder])
+}
+
+model Barber {
+  id          String    @id @default(cuid())
+  slug        String    @unique
+  name        String
+  title       String
+  bio         String
+  image       String
+  /// Days of the week the barber works, 0 = Sunday ... 6 = Saturday
+  workingDays Int[]
+  active      Boolean   @default(true)
+  sortOrder   Int       @default(0)
+  bookings    Booking[]
+
+  @@index([active, sortOrder])
+}
+
+model Booking {
+  id             String        @id @default(cuid())
+  reference      String        @unique
+  customerName   String
+  customerEmail  String
+  customerPhone  String
+  newClient      Boolean       @default(false)
+  barberId       String
+  serviceId      String
+  /// Calendar day in the shop's timezone
+  bookingDate    DateTime      @db.Date
+  /// Minutes after midnight, shop-local time
+  startMinutes   Int
+  endMinutes     Int
+  status         BookingStatus @default(CONFIRMED)
+  /// Client-generated key so a double-clicked or retried submit cannot create two bookings
+  idempotencyKey String?       @unique
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  barber         Barber        @relation(fields: [barberId], references: [id])
+  service        Service       @relation(fields: [serviceId], references: [id])
+
+  @@index([barberId, bookingDate, status])
+  @@index([customerEmail])
+}
