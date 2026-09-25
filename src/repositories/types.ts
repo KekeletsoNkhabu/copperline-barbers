@@ -5,7 +5,10 @@ export interface NewBooking {
   customerName: string;
   customerEmail: string;
   customerPhone: string;
+  normalizedEmail: string;
+  normalizedPhone: string;
   newClient: boolean;
+  discountCents: number;
   barberId: string;
   serviceId: string;
   date: string;
@@ -25,16 +28,10 @@ export interface BarberRepository {
 }
 
 export interface BookingRepository {
-  /** Confirmed appointments for a barber on a date */
   findBusyIntervals(barberId: string, date: string): Promise<Interval[]>;
   findByReference(reference: string): Promise<BookingDetails | null>;
   findByIdempotencyKey(key: string): Promise<BookingDetails | null>;
-  /**
-   * Atomically re-check the slot and create the booking. Implementations must
-   * serialise concurrent attempts for the same barber and date, call
-   * `validate` with the busy intervals seen inside the transaction, and throw
-   * SlotUnavailableError if validation fails or the database rejects an overlap.
-   */
+  hasPriorBooking(normalizedEmail: string, normalizedPhone: string): Promise<boolean>;
   createIfAvailable(
     booking: NewBooking,
     validate: (busy: Interval[]) => void,

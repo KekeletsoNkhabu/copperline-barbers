@@ -49,7 +49,12 @@ model Booking {
   customerName   String
   customerEmail  String
   customerPhone  String
+  /// Lowercased/de-tagged email and digits-only phone, for the first-visit eligibility check
+  normalizedEmail String
+  normalizedPhone String
   newClient      Boolean       @default(false)
+  /// Rand cents actually taken off. Zero unless newClient was true and it was the customer's first booking.
+  discountCents  Int           @default(0)
   barberId       String
   serviceId      String
   /// Calendar day in the shop's timezone
@@ -67,4 +72,5 @@ model Booking {
 
   @@index([barberId, bookingDate, status])
   @@index([customerEmail])
+  @@index([normalizedEmail, normalizedPhone])
 }

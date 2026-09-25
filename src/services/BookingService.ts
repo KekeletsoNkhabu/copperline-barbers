@@ -2,6 +2,7 @@ import { randomBytes } from "node:crypto";
 import { shop, fullAddress } from "@/config/shop";
 import { AppError, NotFoundError, SlotUnavailableError, ValidationError } from "@/lib/errors";
 import { formatDateLong, formatMinutes, timeToMinutes, weekdayOf } from "@/lib/time";
+import { normalizeEmail, normalizePhone } from "@/lib/text";
 import type { BarberRepository, BookingRepository, ServiceRepository } from "@/repositories/types";
 import type { CreateBookingInput } from "@/schemas/booking";
 import type { BookingDetails, BookingResponse } from "@/types";
@@ -9,7 +10,7 @@ import { checkSlot, type SlotProblem } from "./availability";
 import type { CalendarService } from "./CalendarService";
 import type { EmailService } from "./EmailService";
 
-const REFERENCE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // no 0/O/1/I
+const REFERENCE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; 
 
 export function generateReference(): string {
   const bytes = randomBytes(6);
@@ -38,11 +39,9 @@ export interface BookingServiceDeps {
 export class BookingService {
   constructor(private readonly deps: BookingServiceDeps) {}
 
-  /** Validate, reserve the slot atomically, then send emails. Emails never affect the booking itself. */
   async createBooking(input: CreateBookingInput): Promise<BookingResponse> {
     const { services, barbers, bookings, clock } = this.deps;
 
-    // A retried or double-clicked submit returns the original booking
     const previous = await bookings.findByIdempotencyKey(input.idempotencyKey);
     if (previous) return this.toResponse(previous, false);
 
@@ -58,7 +57,6 @@ export class BookingService {
     const endMinutes = startMinutes + service.durationMinutes;
     const barberWorks = barber.workingDays.includes(weekdayOf(input.date));
 
-    // Runs inside the repository's transaction against the latest bookings
     const validate = (busy: { start: number; end: number }[]) => {
       const problem = checkSlot(
         { date: input.date, duration: service.durationMinutes, barberWorks, busy, now: clock?.() },
@@ -67,6 +65,19 @@ export class BookingService {
       if (problem === "taken") throw new SlotUnavailableError();
       if (problem) throw new ValidationError(PROBLEM_MESSAGES[problem], { startTime: PROBLEM_MESSAGES[problem] });
     };
+
+    const normalizedEmail = normalizeEmail(input.customerEmail);
+    const normalizedPhone = normalizePhone(input.customerPhone);
+    let discountCents = 0;
+    let notice: string | undefined;
+    if (input.newClient) {
+      const seenBefore = await bookings.hasPriorBooking(normalizedEmail, normalizedPhone);
+      if (seenBefore) {
+        notice = "The first-visit offer is for new customers only, so the full price applies to this booking.";
+      } else {
+        discountCents = Math.round(shop.newClientDiscountRand * 100);
+      }
+    }
 
     let booking: BookingDetails | null = null;
     for (let attempt = 0; attempt < 3 && !booking; attempt++) {
@@ -77,7 +88,10 @@ export class BookingService {
             customerName: input.customerName,
             customerEmail: input.customerEmail,
             customerPhone: input.customerPhone,
+            normalizedEmail,
+            normalizedPhone,
             newClient: input.newClient,
+            discountCents,
             barberId: barber.id,
             serviceId: service.id,
             date: input.date,
@@ -89,16 +103,14 @@ export class BookingService {
         );
       } catch (error) {
         if (error instanceof AppError) throw error;
-        // Extremely unlikely reference collision: retry with a new reference
         if (attempt < 2 && String((error as Error)?.message).includes("reference")) continue;
         throw error;
       }
     }
     if (!booking) throw new AppError("INTERNAL", "We couldn't complete your booking right now. Please try again.", 500);
 
-    // Only after the booking is safely stored
     const emailSent = await this.deps.email.sendBookingEmails(booking);
-    return this.toResponse(booking, emailSent);
+    return this.toResponse(booking, emailSent, notice);
   }
 
   async getByReference(reference: string): Promise<BookingDetails> {
@@ -107,7 +119,7 @@ export class BookingService {
     return booking;
   }
 
-  toResponse(booking: BookingDetails, emailSent: boolean): BookingResponse {
+  toResponse(booking: BookingDetails, emailSent: boolean, notice?: string): BookingResponse {
     const event = this.deps.calendar.buildEvent(booking);
     return {
       booking: {
@@ -119,6 +131,8 @@ export class BookingService {
         serviceName: booking.service.name,
         barberName: booking.barber.name,
         priceCents: booking.service.priceCents,
+        discountCents: booking.discountCents,
+        finalPriceCents: booking.service.priceCents - booking.discountCents,
         location: fullAddress(),
       },
       calendar: {
@@ -126,6 +140,7 @@ export class BookingService {
         icsUrl: `/api/bookings/${booking.reference}/calendar`,
       },
       emailSent,
+      notice,
     };
   }
 }

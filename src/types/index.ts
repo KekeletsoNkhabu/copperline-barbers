@@ -1,7 +1,5 @@
 export interface Interval {
-  /** Minutes after midnight, inclusive */
   start: number;
-  /** Minutes after midnight, exclusive */
   end: number;
 }
 
@@ -32,7 +30,7 @@ export interface BookingDetails {
   customerEmail: string;
   customerPhone: string;
   newClient: boolean;
-  /** YYYY-MM-DD, shop-local */
+  discountCents: number;
   date: string;
   startMinutes: number;
   endMinutes: number;
@@ -56,8 +54,11 @@ export interface BookingResponse {
     serviceName: string;
     barberName: string;
     priceCents: number;
+    discountCents: number;
+    finalPriceCents: number;
     location: string;
   };
   calendar: { googleUrl: string; icsUrl: string };
   emailSent: boolean;
+  notice?: string;
 }

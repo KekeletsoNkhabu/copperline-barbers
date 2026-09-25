@@ -45,6 +45,7 @@ function toDetails(row: BookingRow): BookingDetails {
     customerEmail: row.customerEmail,
     customerPhone: row.customerPhone,
     newClient: row.newClient,
+    discountCents: (row as BookingRow & { discountCents: number }).discountCents,
     date: dateToString(row.bookingDate),
     startMinutes: row.startMinutes,
     endMinutes: row.endMinutes,
@@ -87,6 +88,17 @@ export const bookingRepository: BookingRepository = {
     return row ? toDetails(row) : null;
   },
 
+  async hasPriorBooking(normalizedEmail, normalizedPhone) {
+    const existing = await prisma.booking.findFirst({
+      where: {
+        status: "CONFIRMED",
+        OR: [{ customerEmail: normalizedEmail }, ...(normalizedPhone ? [{ customerPhone: normalizedPhone }] : [])],
+      },
+      select: { id: true },
+    });
+    return existing !== null;
+  },
+
   async createIfAvailable(input: NewBooking, validate) {
     const bookingDate = stringToDate(input.date);
     try {
@@ -105,7 +117,10 @@ export const bookingRepository: BookingRepository = {
             customerName: input.customerName,
             customerEmail: input.customerEmail,
             customerPhone: input.customerPhone,
+            normalizedEmail: input.normalizedEmail,
+            normalizedPhone: input.normalizedPhone,
             newClient: input.newClient,
+            discountCents: input.discountCents,
             barberId: input.barberId,
             serviceId: input.serviceId,
             bookingDate,
@@ -116,8 +131,6 @@ export const bookingRepository: BookingRepository = {
           include: bookingInclude,
         });
       }, {
-        // Prisma's defaults (2s wait, 5s run) are too tight for a remote database that may be
-        // waking from idle. The transaction only holds a lock for one barber and one day.
         maxWait: 10_000,
         timeout: 20_000,
       });

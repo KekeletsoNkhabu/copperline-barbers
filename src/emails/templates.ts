@@ -4,12 +4,21 @@ import { formatDateLong, formatMinutes } from "@/lib/time";
 import { formatPrice } from "@/lib/money";
 import type { BookingDetails } from "@/types";
 
-interface Row { label: string; value: string }
+interface Row {
+  label: string;
+  value: string;
+}
 
-function layout(title: string, intro: string, rows: Row[], footer: string): string {
+function layout(
+  title: string,
+  intro: string,
+  rows: Row[],
+  footer: string,
+): string {
   const body = rows
     .map(
-      (r) => `<tr><td style="padding:8px 16px 8px 0;color:#566171;font-size:14px;vertical-align:top;white-space:nowrap">${e(r.label)}</td><td style="padding:8px 0;font-size:15px;color:#15202B">${e(r.value)}</td></tr>`,
+      (r) =>
+        `<tr><td style="padding:8px 16px 8px 0;color:#566171;font-size:14px;vertical-align:top;white-space:nowrap">${e(r.label)}</td><td style="padding:8px 0;font-size:15px;color:#15202B">${e(r.value)}</td></tr>`,
     )
     .join("");
   return `<!doctype html><html><body style="margin:0;background:#F5F3EE;font-family:Arial,Helvetica,sans-serif">
@@ -33,12 +42,22 @@ function appointmentRows(b: BookingDetails): Row[] {
   ];
 }
 
-export function customerConfirmation(b: BookingDetails): { subject: string; html: string; text: string } {
+export function customerConfirmation(b: BookingDetails): {
+  subject: string;
+  html: string;
+  text: string;
+} {
   const rows: Row[] = [
     { label: "Booking reference", value: b.reference },
     { label: "Name", value: b.customerName },
     ...appointmentRows(b),
-    { label: "Price", value: `${formatPrice(b.service.priceCents)}, paid in the shop` },
+    {
+      label: "Price",
+      value:
+        b.discountCents > 0
+          ? `${formatPrice(b.service.priceCents - b.discountCents)}, paid in the shop (R${b.discountCents / 100} first-visit discount applied)`
+          : `${formatPrice(b.service.priceCents)}, paid in the shop`,
+    },
     { label: "Location", value: `${shop.name}, ${fullAddress()}` },
     { label: "Contact", value: `${shop.phone}, ${shop.email}` },
   ];
@@ -47,23 +66,53 @@ export function customerConfirmation(b: BookingDetails): { subject: string; html
   return {
     subject: `Your booking is confirmed: ${b.reference}`,
     html: layout("Booking confirmed", intro, rows, footer),
-    text: [intro, "", ...rows.map((r) => `${r.label}: ${r.value}`), "", footer.replace(/<br>/g, "\n")].join("\n"),
+    text: [
+      intro,
+      "",
+      ...rows.map((r) => `${r.label}: ${r.value}`),
+      "",
+      footer.replace(/<br>/g, "\n"),
+    ].join("\n"),
   };
 }
 
-export function shopNotification(b: BookingDetails): { subject: string; html: string; text: string } {
+export function shopNotification(b: BookingDetails): {
+  subject: string;
+  html: string;
+  text: string;
+} {
   const rows: Row[] = [
     { label: "Booking reference", value: b.reference },
     { label: "Customer", value: b.customerName },
     { label: "Email", value: b.customerEmail },
     { label: "Phone", value: b.customerPhone },
     ...appointmentRows(b),
-    ...(b.newClient ? [{ label: "New client offer", value: `First visit, apply R${shop.newClientDiscountRand} discount` }] : []),
+    {
+      label: "Price to charge",
+      value:
+        b.discountCents > 0
+          ? `${formatPrice(b.service.priceCents - b.discountCents)} (R${b.discountCents / 100} first-visit discount applied and verified)`
+          : formatPrice(b.service.priceCents),
+    },
+    ...(b.newClient && b.discountCents === 0
+      ? [
+          {
+            label: "Note",
+            value:
+              "Customer ticked first visit, but our records show a prior booking, so no discount was applied.",
+          },
+        ]
+      : []),
   ];
   const intro = `New booking for ${b.barber.name}.`;
   return {
     subject: `New booking: ${b.service.name} with ${b.barber.name}, ${b.date} ${formatMinutes(b.startMinutes)}`,
-    html: layout("New booking", intro, rows, "Sent automatically when a customer books online."),
+    html: layout(
+      "New booking",
+      intro,
+      rows,
+      "Sent automatically when a customer books online.",
+    ),
     text: [intro, "", ...rows.map((r) => `${r.label}: ${r.value}`)].join("\n"),
   };
 }
